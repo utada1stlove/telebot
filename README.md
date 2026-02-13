@@ -8,6 +8,7 @@
 - 兼容 `reply_to_message` / `external_reply` / `quote` 三种回复结构
 - 当客户端不上传回复字段时，自动回退到最近消息推断目标
 - 优先使用 Telegram 用户头像，拿不到时回退为字母头像
+- 支持 `/pack` 一键将最近生成贴纸加入你的个人贴纸包
 - 生成 512x512 静态贴纸（WebP）
 - 适合 VPS 上用 Docker 持续运行
 
@@ -17,7 +18,7 @@ src/
   app/                # 启动与生命周期
   config/             # 环境变量与配置读取
   bot/
-    commands/         # /start /help /sticker
+    commands/         # /start /help /preview /sticker /pack
     extract/          # 回复消息提取与兼容逻辑
     services/         # 头像下载等 Telegram 交互
     store/            # 最近消息缓存与回退
@@ -52,6 +53,7 @@ docker compose logs -f --tail=100
 1. 在 Telegram 中先回复一条消息
 2. 发送 `/sticker`
 3. Bot 返回对应贴纸
+4. 发送 `/pack` 把最近一张贴纸加入你的贴纸包
 
 ## 常见问题
 - 发送 `/sticker` 后提示“请先回复一条消息”

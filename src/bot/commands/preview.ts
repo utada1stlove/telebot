@@ -1,15 +1,12 @@
 import {
   getCommandMessageId,
+  getCommandUser,
+  getCommandUserId,
   isStickerCommandContext,
   toReplyExtra
 } from "../context.js";
-import {
-  asRecord,
-  readNumber,
-  readRecord,
-  readString
-} from "../extract/messageIdentity.js";
 import { fetchUserAvatar } from "../services/fetchAvatar.js";
+import { setLastSticker } from "../store/lastSticker.js";
 import { renderReplySticker } from "../../render/renderReplySticker.js";
 
 type PreviewIdentity = {
@@ -18,34 +15,32 @@ type PreviewIdentity = {
 };
 
 function getPreviewIdentity(ctx: unknown): PreviewIdentity {
-  const context = asRecord(ctx);
-  const from =
-    readRecord(context, "from") ??
-    readRecord(readRecord(context, "message"), "from") ??
-    readRecord(readRecord(context, "msg"), "from");
+  if (isStickerCommandContext(ctx)) {
+    const user = getCommandUser(ctx);
+    const userId = getCommandUserId(ctx);
 
-  const firstName = readString(from, "first_name");
-  const lastName = readString(from, "last_name");
-  const username = readString(from, "username");
-  const userId = readNumber(from, "id") ?? undefined;
+    if (user?.first_name) {
+      return {
+        speaker: `${user.first_name}${user.last_name ? ` ${user.last_name}` : ""}`.trim(),
+        userId
+      };
+    }
 
-  if (firstName) {
+    if (user?.username) {
+      return {
+        speaker: `@${user.username}`,
+        userId
+      };
+    }
+
     return {
-      speaker: `${firstName}${lastName ? ` ${lastName}` : ""}`.trim(),
-      userId
-    };
-  }
-
-  if (username) {
-    return {
-      speaker: `@${username}`,
+      speaker: "Preview",
       userId
     };
   }
 
   return {
-    speaker: "Preview",
-    userId
+    speaker: "Preview"
   };
 }
 
@@ -70,6 +65,11 @@ export async function handlePreview(ctx: unknown) {
       text: "你好，这是 /preview 渲染测试。\n头像、字号、间距是否自然？",
       avatar
     });
+
+    const actorUserId = getCommandUserId(ctx);
+    if (typeof actorUserId === "number") {
+      setLastSticker(actorUserId, sticker);
+    }
 
     await ctx.replyWithSticker({ source: sticker }, toReplyExtra(commandMessageId));
   } catch (error) {
