@@ -1,0 +1,6 @@
+services:
+  bot:
+    build: .
+    environment:
+      - BOT_TOKEN=替换成你的token
+    restart: unless-stopped
