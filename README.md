@@ -15,7 +15,8 @@ written by gpt5.2
 否则 bot 在群里可能拿不到 reply_to_message。
 
 ## 运行（Docker）
-1. 填写 docker-compose.yml 的 BOT_TOKEN
+1. 在项目根目录创建 `.env`：
+   BOT_TOKEN=你的真实BotToken
 2. 启动：
    docker compose up -d --build
 

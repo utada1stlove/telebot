@@ -2,5 +2,5 @@ services:
   bot:
     build: .
     environment:
-      - BOT_TOKEN=替换成你的token
+      - BOT_TOKEN=${BOT_TOKEN:?BOT_TOKEN is required}
     restart: unless-stopped
