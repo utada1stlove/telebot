@@ -1,4 +1,1 @@
-export type StickerBubble = {
-  speaker: string;
-  text: string;
-};
+export type { StickerBubble } from "./sticker.js";

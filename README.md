@@ -5,8 +5,22 @@
 ## 功能
 - 支持私聊和群组
 - 支持文本消息和图片 caption
+- 兼容 `reply_to_message` / `external_reply` / `quote` 三种回复结构
 - 生成 512x512 静态贴纸（WebP）
 - 适合 VPS 上用 Docker 持续运行
+
+## 项目结构
+```text
+src/
+  app/                # 启动与生命周期
+  config/             # 环境变量与配置读取
+  bot/
+    commands/         # /start /help /sticker
+    extract/          # 回复消息提取与兼容逻辑
+  render/             # 贴纸渲染
+  utils/              # 文本处理工具
+  types/              # 共享类型
+```
 
 ## 前置设置（群组必须）
 在 `@BotFather` 里操作：

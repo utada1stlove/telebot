@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { clampText, ellipsizeLastLine, escapeXml, wrapText } from "../utils/text.js";
 import { theme } from "./theme.js";
-import type { StickerBubble } from "../types/index.js";
+import type { StickerBubble } from "../types/sticker.js";
 
 const W = 512;
 const H = 512;
