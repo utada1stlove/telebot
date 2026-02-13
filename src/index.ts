@@ -15,9 +15,7 @@ async function bootstrap() {
 
     if (ctx.chat) {
       try {
-        await ctx.reply("出错了，稍后再试一次。", {
-          reply_to_message_id: (ctx.message as any)?.message_id
-        });
+        await ctx.reply("出错了，稍后再试一次。");
       } catch {
         // Ignore secondary failures.
       }
