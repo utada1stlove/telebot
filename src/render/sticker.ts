@@ -1,95 +1,85 @@
 import sharp from "sharp";
-import { escapeXml, clampText } from "../utils/text.js";
+import { clampText, ellipsizeLastLine, escapeXml, wrapText } from "../utils/text.js";
+import { theme } from "./theme.js";
 import type { StickerBubble } from "../types/index.js";
-import { tgDarkTheme as theme } from "./theme.js";
 
 const W = 512;
 const H = 512;
+const BUBBLE_X = 78;
+const BUBBLE_W = 414;
+const BUBBLE_PADDING_X = 28;
+const SPEAKER_FONT_SIZE = 42;
+const BODY_FONT_SIZE = 56;
+const BODY_LINE_HEIGHT = 64;
+const MAX_BODY_LINES = 5;
+const BODY_MAX_UNITS = 12;
 
-type Layout = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  speaker: string;
-  text: string;
-};
-
-function estimateBox(textLen: number) {
-  // Telegram 气泡宽度随文本长度变化（粗略即可，MVP 不追求完美）
-  const minW = 260;
-  const maxW = 440;
-  const w = Math.max(minW, Math.min(maxW, 220 + Math.min(80, textLen) * 4));
-  return w;
+function initialOf(name: string) {
+  const normalized = name.trim();
+  if (!normalized) return "?";
+  return normalized[0]?.toUpperCase() ?? "?";
 }
 
-export async function renderReplySticker(b: StickerBubble): Promise<Buffer> {
-  const speaker = escapeXml(clampText(b.speaker, 36));
-  const text = escapeXml(clampText(b.text, 260));
+function buildBodyLines(input: string) {
+  const limited = clampText(input, 140);
+  const wrapped = wrapText(limited, BODY_MAX_UNITS, MAX_BODY_LINES);
+  const truncated = limited.length < input.trim().length || wrapped.truncated;
+  return ellipsizeLastLine(wrapped.lines, truncated);
+}
 
-  const bubbleW = estimateBox(text.length);
+export async function renderReplySticker(input: StickerBubble): Promise<Buffer> {
+  const speaker = escapeXml(clampText(input.speaker, 26));
+  const bodyLines = buildBodyLines(input.text).map(escapeXml);
 
-  // 用 foreignObject 让浏览器式排版自动换行（sharp 支持）
-  // 这里的高度给一个上限，防止溢出；内容过多会被裁剪（MVP）
-  const bubbleX = 36;
-  const bubbleY = 90;
-  const bubbleH = 340;
+  const bubbleHeight = Math.min(
+    460,
+    58 + SPEAKER_FONT_SIZE + 24 + bodyLines.length * BODY_LINE_HEIGHT + 36
+  );
+  const bubbleY = Math.max(24, Math.floor((H - bubbleHeight) / 2));
 
-  const layout: Layout = {
-    x: bubbleX,
-    y: bubbleY,
-    w: bubbleW,
-    h: bubbleH,
-    speaker,
-    text
-  };
+  const avatarR = 30;
+  const avatarCx = 38;
+  const avatarCy = bubbleY + 34;
+
+  const bodyStartX = BUBBLE_X + BUBBLE_PADDING_X;
+  const bodyStartY = bubbleY + 58 + SPEAKER_FONT_SIZE + 20;
+
+  const bodySvg = bodyLines
+    .map((line, index) => {
+      const y = bodyStartY + index * BODY_LINE_HEIGHT;
+      return `<text x="${bodyStartX}" y="${y}" fill="${theme.text}" font-size="${BODY_FONT_SIZE}" font-weight="700">${line}</text>`;
+    })
+    .join("\n");
 
   const svg = `
-  <svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <filter id="shadow" x="-25%" y="-25%" width="160%" height="160%">
-        <feDropShadow dx="0" dy="${theme.shadow.dy}" stdDeviation="${theme.shadow.blur}"
-          flood-opacity="${theme.shadow.opacity}"/>
-      </filter>
-    </defs>
+<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#000" flood-opacity="${theme.shadowOpacity}"/>
+    </filter>
+  </defs>
+  <style>
+    text {
+      font-family: "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Color Emoji", sans-serif;
+    }
+  </style>
 
-    <!-- 透明背景：更像贴纸 -->
-    <!-- 气泡 -->
-    <rect x="${layout.x}" y="${layout.y}" width="${layout.w}" height="${layout.h}"
-      rx="${theme.radius}" ry="${theme.radius}"
-      fill="${theme.bubbleIncoming}" filter="url(#shadow)"/>
+  <rect x="${BUBBLE_X}" y="${bubbleY}" width="${BUBBLE_W}" height="${bubbleHeight}" rx="34" ry="34"
+    fill="${theme.bubble}" stroke="${theme.bubbleStroke}" stroke-width="2" filter="url(#shadow)"/>
 
-    <!-- 文本块 -->
-    <foreignObject x="${layout.x + 22}" y="${layout.y + 18}" width="${layout.w - 44}" height="${layout.h - 36}">
-      <div xmlns="http://www.w3.org/1999/xhtml"
-        style="
-          font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-          color: ${theme.textPrimary};
-          width: 100%;
-          height: 100%;
-          overflow: hidden;
-        ">
-        <div style="
-          font-size: 22px;
-          line-height: 28px;
-          color: ${theme.textSecondary};
-          margin-bottom: 10px;
-          white-space: nowrap;
-          text-overflow: ellipsis;
-          overflow: hidden;
-        ">${layout.speaker}</div>
+  <circle cx="${avatarCx}" cy="${avatarCy}" r="${avatarR}" fill="${theme.avatarBg}"/>
+  <text x="${avatarCx}" y="${avatarCy + 13}" text-anchor="middle" fill="${theme.avatarText}" font-size="34" font-weight="800">
+    ${escapeXml(initialOf(input.speaker))}
+  </text>
 
-        <div style="
-          font-size: 34px;
-          line-height: 46px;
-          word-break: break-word;
-          overflow-wrap: anywhere;
-        ">${layout.text}</div>
-      </div>
-    </foreignObject>
-  </svg>`;
+  <text x="${BUBBLE_X + BUBBLE_PADDING_X}" y="${bubbleY + 58}" fill="${theme.speaker}" font-size="${SPEAKER_FONT_SIZE}" font-weight="700">
+    ${speaker}
+  </text>
 
-  return sharp(Buffer.from(svg))
-    .webp({ quality: 92 })
+  ${bodySvg}
+</svg>`;
+
+  return sharp(Buffer.from(svg), { density: 192 })
+    .webp({ quality: 92, effort: 4 })
     .toBuffer();
 }

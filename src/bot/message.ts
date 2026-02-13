@@ -1,25 +1,51 @@
-import type { Context } from "telegraf";
 import { normalizeText } from "../utils/text.js";
 
-export function getRepliedMessage(ctx: any) {
+type MaybeMessage = {
+  text?: string;
+  caption?: string;
+  from?: {
+    first_name?: string;
+    last_name?: string;
+    username?: string;
+  };
+  sender_chat?: {
+    title?: string;
+  };
+};
+
+type MaybeContext = {
+  message?: {
+    reply_to_message?: MaybeMessage;
+  };
+};
+
+export function getRepliedMessage(ctx: MaybeContext): MaybeMessage | null {
   return ctx.message?.reply_to_message ?? null;
 }
 
-export function extractRepliedText(reply: any): string | null {
-  const t = typeof reply?.text === "string" ? reply.text : null;
-  const c = typeof reply?.caption === "string" ? reply.caption : null;
-  const raw = t ?? c;
+export function extractRepliedText(reply: MaybeMessage): string | null {
+  const text = typeof reply.text === "string" ? reply.text : null;
+  const caption = typeof reply.caption === "string" ? reply.caption : null;
+  const raw = text ?? caption;
   if (!raw) return null;
+
   const cleaned = normalizeText(raw);
   return cleaned.length ? cleaned : null;
 }
 
-export function extractSpeaker(reply: any): string {
-  const from = reply?.from;
-  if (from?.first_name) {
-    return (from.first_name + (from.last_name ? ` ${from.last_name}` : "")).trim();
+export function extractSpeaker(reply: MaybeMessage): string {
+  if (reply.from?.first_name) {
+    const fullName = `${reply.from.first_name}${reply.from.last_name ? ` ${reply.from.last_name}` : ""}`.trim();
+    return fullName;
   }
-  const chatTitle = reply?.sender_chat?.title;
-  if (chatTitle) return chatTitle;
+
+  if (reply.from?.username) {
+    return `@${reply.from.username}`;
+  }
+
+  if (reply.sender_chat?.title) {
+    return reply.sender_chat.title;
+  }
+
   return "Unknown";
 }

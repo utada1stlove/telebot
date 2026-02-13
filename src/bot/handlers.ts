@@ -1,35 +1,53 @@
 import type { Telegraf } from "telegraf";
-import { getRepliedMessage, extractRepliedText, extractSpeaker } from "./message.js";
+import { extractRepliedText, extractSpeaker, getRepliedMessage } from "./message.js";
 import { renderReplySticker } from "../render/sticker.js";
 
+function usageText() {
+  return [
+    "用法：",
+    "1. 在私聊或群组里先回复一条消息",
+    "2. 然后发送 /sticker",
+    "",
+    "提示：",
+    "- 群组需要在 @BotFather 关闭 Group Privacy（/setprivacy -> Disable）",
+    "- 只支持有文字的消息（文本或图片说明 caption）"
+  ].join("\n");
+}
+
 export function registerHandlers(bot: Telegraf) {
-  bot.command("sticker", async (ctx: any) => {
-    const reply = getRepliedMessage(ctx);
-    if (!reply) {
-      await ctx.reply("请回复一条消息再发送 /sticker（长按消息 → Reply → /sticker）");
-      return;
-    }
-
-    const text = extractRepliedText(reply);
-    if (!text) {
-      await ctx.reply("被回复的消息没有可用文本（可能是纯图片/文件）。");
-      return;
-    }
-
-    const speaker = extractSpeaker(reply);
-
-    try {
-      const webp = await renderReplySticker({ speaker, text, kind: "incoming" });
-      await ctx.replyWithSticker({ source: webp });
-    } catch (e: any) {
-      await ctx.reply(`生成失败：${e?.message ?? e}`);
-    }
+  bot.command("start", async (ctx) => {
+    await ctx.reply(usageText());
   });
 
-  bot.command("start", async (ctx) => {
-    await ctx.reply(
-      "用法：在群里回复一条消息，然后发送 /sticker，我会把那条消息做成 Telegram 深色风格贴纸。\n\n" +
-      "注意：如果在群里无效，请在 @BotFather 里关闭 Group Privacy（/setprivacy -> Disable）。"
-    );
+  bot.command("help", async (ctx) => {
+    await ctx.reply(usageText());
+  });
+
+  bot.command("sticker", async (ctx: any) => {
+    const replied = getRepliedMessage(ctx);
+    if (!replied) {
+      await ctx.reply("请先回复一条消息，再发送 /sticker。", {
+        reply_to_message_id: ctx.message?.message_id
+      });
+      return;
+    }
+
+    const text = extractRepliedText(replied);
+    if (!text) {
+      await ctx.reply("被回复的内容没有可提取文字（例如纯图片/文件）。", {
+        reply_to_message_id: ctx.message?.message_id
+      });
+      return;
+    }
+
+    const speaker = extractSpeaker(replied);
+
+    try {
+      const sticker = await renderReplySticker({ speaker, text });
+      await ctx.replyWithSticker({ source: sticker }, { reply_to_message_id: ctx.message?.message_id });
+    } catch (error: any) {
+      console.error("Failed to render sticker:", error);
+      await ctx.reply(`生成贴纸失败：${error?.message ?? "未知错误"}`);
+    }
   });
 }

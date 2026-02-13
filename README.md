@@ -1,27 +1,45 @@
-# telebot
-according to teleboxdev
-written by gpt5.2
+# Reply Sticker Bot (Docker-first)
 
----
-# Reply Sticker Bot (Telegram Dark Style)
+一个 Telegram Bot：在私聊或群组里回复一条消息，再发送 `/sticker`，机器人会把那条消息渲染成一张深色风格贴纸（WebP）。
 
-功能：在群里回复一条消息并发送 /sticker，Bot 会把被回复的消息渲染成 Telegram 深色聊天气泡贴纸（512x512 WebP）。
+## 功能
+- 支持私聊和群组
+- 支持文本消息和图片 caption
+- 生成 512x512 静态贴纸（WebP）
+- 适合 VPS 上用 Docker 持续运行
 
-## 重要设置（必须）
-在 @BotFather：
-- /setprivacy
-- 选择你的 bot
-- 设为 Disable（关闭群隐私模式）
-否则 bot 在群里可能拿不到 reply_to_message。
+## 前置设置（群组必须）
+在 `@BotFather` 里操作：
+1. `/setprivacy`
+2. 选择你的 bot
+3. 设为 `Disable`
 
-## 运行（Docker）
-1. 在项目根目录创建 `.env`：
-   BOT_TOKEN=你的真实BotToken
-2. 启动：
-   docker compose up -d --build
+否则群组中 bot 可能拿不到被回复消息内容。
 
-查看日志：
-   docker compose logs -f
+## VPS 部署（推荐）
+在服务器项目目录执行：
 
-## 使用
-在群里：长按某条消息 → Reply → 输入 /sticker 发送
+```bash
+cp .env.example .env
+# 编辑 .env，填入真实 BOT_TOKEN
+nano .env
+
+docker compose up -d --build
+docker compose logs -f --tail=100
+```
+
+看到日志里有 `Reply sticker bot started.` 即代表启动成功。
+
+## 使用方法
+1. 在 Telegram 中先回复一条消息
+2. 发送 `/sticker`
+3. Bot 返回对应贴纸
+
+## 常见问题
+- 发送 `/sticker` 后提示“请先回复一条消息”
+  - 确认你使用的是 Telegram 的真正 Reply，不是仅引用文本
+  - 群组里确认已关闭 privacy
+- 无响应
+  - 先看日志：`docker compose logs -f --tail=100`
+- 中文变方块
+  - 本项目镜像已安装 Noto CJK 字体；如果你自定义镜像请保留字体安装步骤
