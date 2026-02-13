@@ -4,6 +4,7 @@ const usage = [
   "用法：",
   "1. 在私聊或群组里先回复一条消息",
   "2. 然后发送 /sticker",
+  "3. 发送 /preview 可快速预览当前贴纸样式",
   "",
   "提示：",
   "- 群组需要在 @BotFather 关闭 Group Privacy（/setprivacy -> Disable）",
