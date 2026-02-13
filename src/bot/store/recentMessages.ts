@@ -22,6 +22,7 @@ type CachedMessage = {
 
 const MAX_PER_CHAT = 200;
 const recentByChat = new Map<string, CachedMessage[]>();
+const MAX_SEQUENCE_COUNT = 4;
 
 function readChatKey(message: JsonRecord | null): string | null {
   const chat = readRecord(message, "chat");
@@ -64,6 +65,12 @@ function getIncomingMessage(ctx: unknown): JsonRecord | null {
   return readRecord(context, "message") ?? readRecord(readRecord(context, "update"), "message") ?? readRecord(context, "msg");
 }
 
+function readReplyToMessageId(message: JsonRecord | null): number | undefined {
+  const replyTo = readRecord(message, "reply_to_message");
+  const messageId = readNumber(replyTo, "message_id");
+  return typeof messageId === "number" ? messageId : undefined;
+}
+
 function toCachedMessage(message: JsonRecord | null): CachedMessage | null {
   if (!message) return null;
 
@@ -102,6 +109,105 @@ export function rememberMessage(ctx: unknown): void {
   saveMessage(parsed);
 }
 
+function timelineBeforeCommand(command: CachedMessage, bucket: CachedMessage[]): CachedMessage[] {
+  const commandMessageId = typeof command.messageId === "number" ? command.messageId : null;
+
+  return bucket.filter((item) => {
+    if (!item.text || item.isCommand) return false;
+
+    if (commandMessageId !== null) {
+      if (typeof item.messageId !== "number") return false;
+      return item.messageId < commandMessageId;
+    }
+
+    return true;
+  });
+}
+
+function pickAnchorForSequence(
+  timeline: CachedMessage[],
+  replyToMessageId: number | undefined
+): { item: CachedMessage; index: number } | null {
+  if (!timeline.length) return null;
+
+  if (typeof replyToMessageId === "number") {
+    for (let index = timeline.length - 1; index >= 0; index -= 1) {
+      if (timeline[index]?.messageId === replyToMessageId) {
+        return { item: timeline[index] as CachedMessage, index };
+      }
+    }
+    return null;
+  }
+
+  const index = timeline.length - 1;
+  return { item: timeline[index] as CachedMessage, index };
+}
+
+function hasSameSender(older: CachedMessage, newer: CachedMessage): boolean {
+  if (older.senderKey && newer.senderKey) return older.senderKey === newer.senderKey;
+  if (typeof older.senderUserId === "number" && typeof newer.senderUserId === "number") {
+    return older.senderUserId === newer.senderUserId;
+  }
+  return older.speaker === newer.speaker;
+}
+
+function canMergeAdjacent(older: CachedMessage, newer: CachedMessage): boolean {
+  if (!hasSameSender(older, newer)) return false;
+
+  if (typeof older.messageId === "number" && typeof newer.messageId === "number") {
+    const messageGap = newer.messageId - older.messageId;
+    if (messageGap <= 0 || messageGap > 20) return false;
+  }
+
+  if (typeof older.date === "number" && typeof newer.date === "number") {
+    const timeGap = newer.date - older.date;
+    if (timeGap < 0 || timeGap > 600) return false;
+  }
+
+  return true;
+}
+
+function buildSequencePayload(sequence: CachedMessage[]): ReplyPayload | null {
+  if (!sequence.length) return null;
+  const merged = sequence.map((item) => item.text).filter((text): text is string => Boolean(text)).join("\n");
+  if (!merged) return null;
+
+  const anchor = sequence[sequence.length - 1] as CachedMessage;
+  return {
+    text: merged,
+    speaker: anchor.speaker,
+    senderUserId: anchor.senderUserId,
+    source: "history"
+  };
+}
+
+export function findFallbackReplySequence(ctx: unknown, requestedCount: number): ReplyPayload | null {
+  const commandMessage = getIncomingMessage(ctx);
+  const command = toCachedMessage(commandMessage);
+  if (!command) return null;
+
+  const count = Math.max(1, Math.min(MAX_SEQUENCE_COUNT, Math.floor(requestedCount)));
+  if (count <= 1) return findFallbackReply(ctx);
+
+  const bucket = recentByChat.get(command.chatKey) ?? [];
+  const timeline = timelineBeforeCommand(command, bucket);
+  const anchor = pickAnchorForSequence(timeline, readReplyToMessageId(commandMessage));
+  if (!anchor) return null;
+
+  const sequence: CachedMessage[] = [anchor.item];
+  let right = anchor.item;
+
+  for (let index = anchor.index - 1; index >= 0 && sequence.length < count; index -= 1) {
+    const older = timeline[index] as CachedMessage;
+    if (!canMergeAdjacent(older, right)) break;
+    sequence.push(older);
+    right = older;
+  }
+
+  sequence.reverse();
+  return buildSequencePayload(sequence);
+}
+
 function pickFallback(command: CachedMessage, candidates: CachedMessage[]): CachedMessage | null {
   if (!candidates.length) return null;
 
@@ -135,22 +241,8 @@ function pickFallback(command: CachedMessage, candidates: CachedMessage[]): Cach
 export function findFallbackReply(ctx: unknown): ReplyPayload | null {
   const command = toCachedMessage(getIncomingMessage(ctx));
   if (!command) return null;
-  const commandMessageId = typeof command.messageId === "number" ? command.messageId : null;
-
   const bucket = recentByChat.get(command.chatKey) ?? [];
-
-  const candidates = bucket
-    .filter((item) => {
-      if (!item.text || item.isCommand) return false;
-
-      if (commandMessageId !== null) {
-        if (typeof item.messageId !== "number") return false;
-        return item.messageId < commandMessageId;
-      }
-
-      return true;
-    })
-    .reverse();
+  const candidates = timelineBeforeCommand(command, bucket).reverse();
 
   const picked = pickFallback(command, candidates);
   if (!picked || !picked.text) return null;

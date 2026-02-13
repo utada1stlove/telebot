@@ -1,4 +1,5 @@
 import {
+  getCommandText,
   getCommandMessageId,
   getCommandMessageKeys,
   getCommandUserId,
@@ -6,14 +7,26 @@ import {
   toReplyExtra
 } from "../context.js";
 import { getReplyPayload } from "../extract/replyPayload.js";
-import { findFallbackReply } from "../store/recentMessages.js";
+import { findFallbackReply, findFallbackReplySequence } from "../store/recentMessages.js";
 import { setLastSticker } from "../store/lastSticker.js";
 import { fetchUserAvatar } from "../services/fetchAvatar.js";
 import { renderReplySticker } from "../../render/renderReplySticker.js";
 
+const MAX_MERGE_COUNT = 4;
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return "未知错误";
+}
+
+function parseMergeCount(commandText: string | undefined): number {
+  if (!commandText) return 1;
+  const parts = commandText.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return 1;
+
+  const parsed = Number.parseInt(parts[1] ?? "", 10);
+  if (!Number.isInteger(parsed) || parsed < 1) return 1;
+  return Math.min(MAX_MERGE_COUNT, parsed);
 }
 
 export async function handleSticker(ctx: unknown) {
@@ -23,14 +36,17 @@ export async function handleSticker(ctx: unknown) {
   }
 
   const commandMessageId = getCommandMessageId(ctx);
+  const mergeCount = parseMergeCount(getCommandText(ctx));
   const strictReply = getReplyPayload(ctx);
-  const reply = strictReply ?? findFallbackReply(ctx);
+  const mergedReply = mergeCount > 1 ? findFallbackReplySequence(ctx, mergeCount) : null;
+  const reply = mergedReply ?? strictReply ?? findFallbackReply(ctx);
 
   if (!reply) {
     console.warn("No reply context on /sticker", {
       chatId: ctx.chat?.id,
       hasMessage: Boolean(ctx.message || ctx.msg),
-      messageKeys: getCommandMessageKeys(ctx)
+      messageKeys: getCommandMessageKeys(ctx),
+      mergeCount
     });
 
     await ctx.reply("请先回复一条消息，再发送 /sticker。", toReplyExtra(commandMessageId));

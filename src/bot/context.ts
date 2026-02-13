@@ -78,6 +78,17 @@ export function getCommandMessageKeys(ctx: CommandContext): string[] {
   return Object.keys((ctx.message ?? ctx.msg ?? {}) as Record<string, unknown>);
 }
 
+export function getCommandText(ctx: CommandContext): string | undefined {
+  const message = (ctx.message ?? ctx.msg ?? {}) as Record<string, unknown>;
+  const text = message.text;
+  if (typeof text === "string") return text;
+
+  const caption = message.caption;
+  if (typeof caption === "string") return caption;
+
+  return undefined;
+}
+
 export function toReplyExtra(messageId: number | undefined): ReplyExtra | undefined {
   if (!messageId) return undefined;
   return { reply_to_message_id: messageId };
