@@ -136,24 +136,26 @@ export function rememberMessage(ctx: unknown): void {
 function pickFallback(command: CachedMessage, candidates: CachedMessage[]): CachedMessage | null {
   if (!candidates.length) return null;
 
-  if (typeof command.messageId === "number") {
-    const directPrev = candidates.find((item) => item.messageId === command.messageId! - 1);
+  const commandMessageId = typeof command.messageId === "number" ? command.messageId : null;
+  if (commandMessageId !== null) {
+    const directPrev = candidates.find((item) => item.messageId === commandMessageId - 1);
     if (directPrev) return directPrev;
   }
 
-  if (command.senderKey && typeof command.date === "number") {
+  const commandDate = typeof command.date === "number" ? command.date : null;
+  if (command.senderKey && commandDate !== null) {
     const sameSender = candidates.find((item) => {
       if (!item.senderKey || item.senderKey !== command.senderKey) return false;
       if (typeof item.date !== "number") return true;
-      return command.date - item.date <= 300;
+      return commandDate - item.date <= 300;
     });
     if (sameSender) return sameSender;
   }
 
-  if (typeof command.date === "number") {
+  if (commandDate !== null) {
     const recent = candidates.find((item) => {
       if (typeof item.date !== "number") return false;
-      return command.date - item.date <= 45;
+      return commandDate - item.date <= 45;
     });
     if (recent) return recent;
   }
@@ -164,6 +166,7 @@ function pickFallback(command: CachedMessage, candidates: CachedMessage[]): Cach
 export function findFallbackReply(ctx: unknown): ReplyPayload | null {
   const command = toCachedMessage(getIncomingMessage(ctx));
   if (!command) return null;
+  const commandMessageId = typeof command.messageId === "number" ? command.messageId : null;
 
   const bucket = recentByChat.get(command.chatKey) ?? [];
 
@@ -171,9 +174,9 @@ export function findFallbackReply(ctx: unknown): ReplyPayload | null {
     .filter((item) => {
       if (!item.text || item.isCommand) return false;
 
-      if (typeof command.messageId === "number") {
+      if (commandMessageId !== null) {
         if (typeof item.messageId !== "number") return false;
-        return item.messageId < command.messageId;
+        return item.messageId < commandMessageId;
       }
 
       return true;
