@@ -5,16 +5,16 @@ import type { StickerBubble } from "../types/sticker.js";
 
 const W = 512;
 const H = 512;
-const BUBBLE_X = 76;
-const BUBBLE_W = 408;
-const BUBBLE_PADDING_X = 26;
-const SPEAKER_FONT_SIZE = 20;
+const BUBBLE_X = 88;
+const BUBBLE_W = 396;
+const BUBBLE_PADDING_X = 28;
+const SPEAKER_FONT_SIZE = 38;
 const BODY_FONT_SIZE = 34;
 const BODY_LINE_HEIGHT = 42;
 const MAX_BODY_LINES = 5;
-const BODY_MAX_UNITS = 12;
-const TOP_PADDING = 22;
-const SPEAKER_GAP_TO_BODY = 12;
+const BODY_MAX_UNITS = 11;
+const TOP_PADDING = 20;
+const SPEAKER_GAP_TO_BODY = 8;
 const BOTTOM_PADDING = 18;
 
 function initialOf(name: string) {
@@ -50,19 +50,23 @@ export async function renderReplySticker(input: StickerBubble): Promise<Buffer> 
 
   const textBlockHeight = BODY_FONT_SIZE + Math.max(0, bodyLines.length - 1) * BODY_LINE_HEIGHT;
   const bubbleHeight = Math.min(
-    430,
-    TOP_PADDING + SPEAKER_FONT_SIZE + SPEAKER_GAP_TO_BODY + textBlockHeight + BOTTOM_PADDING
+    448,
+    Math.max(
+      220,
+      TOP_PADDING + SPEAKER_FONT_SIZE + SPEAKER_GAP_TO_BODY + textBlockHeight + BOTTOM_PADDING
+    )
   );
   const bubbleY = Math.max(24, Math.floor((H - bubbleHeight) / 2));
 
-  const avatarR = 30;
+  const avatarR = 38;
   const avatarSize = avatarR * 2;
-  const avatarCx = BUBBLE_X - avatarR + 8;
+  const avatarGap = 10;
+  const avatarCx = BUBBLE_X - avatarR - avatarGap;
   const avatarCy = bubbleY + avatarR + 6;
 
   const bodyStartX = BUBBLE_X + BUBBLE_PADDING_X;
   const speakerY = bubbleY + TOP_PADDING + SPEAKER_FONT_SIZE;
-  const bodyStartY = speakerY + SPEAKER_GAP_TO_BODY + BODY_FONT_SIZE;
+  const bodyStartY = speakerY + SPEAKER_GAP_TO_BODY + BODY_FONT_SIZE - 1;
 
   const bodySvg = bodyLines
     .map((line, index) => {
@@ -73,7 +77,7 @@ export async function renderReplySticker(input: StickerBubble): Promise<Buffer> 
 
   const avatarFallback = `
   <circle cx="${avatarCx}" cy="${avatarCy}" r="${avatarR}" fill="${theme.avatarBg}"/>
-  <text x="${avatarCx}" y="${avatarCy + 12}" text-anchor="middle" fill="${theme.avatarText}" font-size="34" font-weight="800">
+  <text x="${avatarCx}" y="${avatarCy + 14}" text-anchor="middle" fill="${theme.avatarText}" font-size="38" font-weight="800">
     ${escapeXml(initialOf(input.speaker))}
   </text>`;
 
@@ -95,7 +99,7 @@ export async function renderReplySticker(input: StickerBubble): Promise<Buffer> 
 
   ${input.avatar ? "" : avatarFallback}
 
-  <text x="${BUBBLE_X + BUBBLE_PADDING_X}" y="${speakerY}" fill="${theme.speaker}" font-size="${SPEAKER_FONT_SIZE}" font-weight="700">
+  <text x="${BUBBLE_X + BUBBLE_PADDING_X}" y="${speakerY}" fill="${theme.speaker}" font-size="${SPEAKER_FONT_SIZE}" font-weight="800">
     ${speaker}
   </text>
 
