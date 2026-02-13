@@ -6,16 +6,19 @@ import type { StickerBubble } from "../types/sticker.js";
 const W = 512;
 const H = 512;
 const BUBBLE_X = 88;
-const BUBBLE_W = 396;
 const BUBBLE_PADDING_X = 28;
 const SPEAKER_FONT_SIZE = 38;
 const BODY_FONT_SIZE = 34;
 const BODY_LINE_HEIGHT = 42;
 const MAX_BODY_LINES = 5;
-const BODY_MAX_UNITS = 11;
+const BODY_MAX_UNITS = 16;
 const TOP_PADDING = 20;
 const SPEAKER_GAP_TO_BODY = 8;
 const BOTTOM_PADDING = 18;
+const BUBBLE_MIN_W = 190;
+const BUBBLE_MAX_W = 396;
+const BUBBLE_MIN_H = 122;
+const BUBBLE_MAX_H = 448;
 
 function initialOf(name: string) {
   const normalized = name.trim();
@@ -28,6 +31,26 @@ function buildBodyLines(input: string) {
   const wrapped = wrapText(limited, BODY_MAX_UNITS, MAX_BODY_LINES);
   const truncated = limited.length < input.trim().length || wrapped.truncated;
   return ellipsizeLastLine(wrapped.lines, truncated);
+}
+
+function widthUnits(char: string): number {
+  return /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe10-\ufe6f\uff00-\uff60\uffe0-\uffe6]/u.test(char)
+    ? 2
+    : 1;
+}
+
+function textUnits(text: string): number {
+  let units = 0;
+  for (const ch of text) units += widthUnits(ch);
+  return units;
+}
+
+function unitsToPx(units: number, fontSize: number): number {
+  return units * fontSize * 0.56;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 async function renderRoundedAvatar(avatar: Buffer, size: number): Promise<Buffer | null> {
@@ -45,16 +68,26 @@ async function renderRoundedAvatar(avatar: Buffer, size: number): Promise<Buffer
 }
 
 export async function renderReplySticker(input: StickerBubble): Promise<Buffer> {
-  const speaker = escapeXml(clampText(input.speaker, 26));
-  const bodyLines = buildBodyLines(input.text).map(escapeXml);
+  const speakerRaw = clampText(input.speaker, 26);
+  const bodyLinesRaw = buildBodyLines(input.text);
+  const speaker = escapeXml(speakerRaw);
+  const bodyLines = bodyLinesRaw.map(escapeXml);
+
+  const speakerWidth = unitsToPx(textUnits(speakerRaw), SPEAKER_FONT_SIZE);
+  const bodyMaxUnits = bodyLinesRaw.reduce((max, line) => Math.max(max, textUnits(line)), 1);
+  const bodyWidth = unitsToPx(bodyMaxUnits, BODY_FONT_SIZE);
+  const contentWidth = Math.max(speakerWidth, bodyWidth);
+  const bubbleWidth = clamp(
+    Math.ceil(contentWidth + BUBBLE_PADDING_X * 2),
+    BUBBLE_MIN_W,
+    BUBBLE_MAX_W
+  );
 
   const textBlockHeight = BODY_FONT_SIZE + Math.max(0, bodyLines.length - 1) * BODY_LINE_HEIGHT;
-  const bubbleHeight = Math.min(
-    448,
-    Math.max(
-      220,
-      TOP_PADDING + SPEAKER_FONT_SIZE + SPEAKER_GAP_TO_BODY + textBlockHeight + BOTTOM_PADDING
-    )
+  const bubbleHeight = clamp(
+    Math.ceil(TOP_PADDING + SPEAKER_FONT_SIZE + SPEAKER_GAP_TO_BODY + textBlockHeight + BOTTOM_PADDING),
+    BUBBLE_MIN_H,
+    BUBBLE_MAX_H
   );
   const bubbleY = Math.max(24, Math.floor((H - bubbleHeight) / 2));
 
@@ -94,7 +127,7 @@ export async function renderReplySticker(input: StickerBubble): Promise<Buffer> 
     }
   </style>
 
-  <rect x="${BUBBLE_X}" y="${bubbleY}" width="${BUBBLE_W}" height="${bubbleHeight}" rx="34" ry="34"
+  <rect x="${BUBBLE_X}" y="${bubbleY}" width="${bubbleWidth}" height="${bubbleHeight}" rx="34" ry="34"
     fill="${theme.bubble}" stroke="${theme.bubbleStroke}" stroke-width="2" filter="url(#shadow)"/>
 
   ${input.avatar ? "" : avatarFallback}
