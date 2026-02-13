@@ -3,7 +3,7 @@ import { normalizeText } from "../../utils/text.js";
 export type ReplyPayload = {
   text: string | null;
   speaker: string;
-  source: "reply_to_message" | "external_reply" | "quote";
+  source: "reply_to_message" | "external_reply" | "quote" | "history";
 };
 
 type JsonRecord = Record<string, unknown>;

@@ -1,0 +1,191 @@
+import { normalizeText } from "../../utils/text.js";
+import type { ReplyPayload } from "../extract/replyPayload.js";
+
+type JsonRecord = Record<string, unknown>;
+
+type CachedMessage = {
+  chatKey: string;
+  messageId?: number;
+  date?: number;
+  senderKey?: string;
+  speaker: string;
+  text: string | null;
+  isCommand: boolean;
+};
+
+const MAX_PER_CHAT = 200;
+const recentByChat = new Map<string, CachedMessage[]>();
+
+function asRecord(value: unknown): JsonRecord | null {
+  if (!value || typeof value !== "object") return null;
+  return value as JsonRecord;
+}
+
+function readRecord(record: JsonRecord | null, key: string): JsonRecord | null {
+  if (!record) return null;
+  return asRecord(record[key]);
+}
+
+function readString(record: JsonRecord | null, key: string): string | null {
+  if (!record) return null;
+  const value = record[key];
+  return typeof value === "string" ? value : null;
+}
+
+function readNumber(record: JsonRecord | null, key: string): number | null {
+  if (!record) return null;
+  const value = record[key];
+  return typeof value === "number" ? value : null;
+}
+
+function readChatKey(message: JsonRecord | null): string | null {
+  const chat = readRecord(message, "chat");
+  const id = chat?.id;
+  if (typeof id === "string" || typeof id === "number") {
+    return String(id);
+  }
+  return null;
+}
+
+function readSenderKey(message: JsonRecord | null): string | null {
+  const from = readRecord(message, "from");
+  const userId = from?.id;
+  if (typeof userId === "number") return `u:${userId}`;
+
+  const senderChat = readRecord(message, "sender_chat");
+  const chatId = senderChat?.id;
+  if (typeof chatId === "number") return `c:${chatId}`;
+
+  return null;
+}
+
+function readSpeaker(message: JsonRecord | null): string {
+  const from = readRecord(message, "from");
+  const firstName = readString(from, "first_name");
+  if (firstName) {
+    const lastName = readString(from, "last_name");
+    return `${firstName}${lastName ? ` ${lastName}` : ""}`.trim();
+  }
+
+  const username = readString(from, "username");
+  if (username) return `@${username}`;
+
+  const senderChat = readRecord(message, "sender_chat");
+  const senderChatTitle = readString(senderChat, "title");
+  if (senderChatTitle) return senderChatTitle;
+
+  return "Unknown";
+}
+
+function readMessageText(message: JsonRecord | null): string | null {
+  const text = readString(message, "text");
+  const caption = readString(message, "caption");
+  const raw = text ?? caption;
+  if (!raw) return null;
+
+  const cleaned = normalizeText(raw);
+  return cleaned.length ? cleaned : null;
+}
+
+function isCommandText(text: string | null): boolean {
+  if (!text) return false;
+  return /^\/[a-z0-9_]+(?:@\w+)?\b/i.test(text);
+}
+
+function getIncomingMessage(ctx: unknown): JsonRecord | null {
+  const context = asRecord(ctx);
+  return readRecord(context, "message") ?? readRecord(readRecord(context, "update"), "message") ?? readRecord(context, "msg");
+}
+
+function toCachedMessage(message: JsonRecord | null): CachedMessage | null {
+  if (!message) return null;
+
+  const chatKey = readChatKey(message);
+  if (!chatKey) return null;
+
+  const text = readMessageText(message);
+
+  return {
+    chatKey,
+    messageId: readNumber(message, "message_id") ?? undefined,
+    date: readNumber(message, "date") ?? undefined,
+    senderKey: readSenderKey(message) ?? undefined,
+    speaker: readSpeaker(message),
+    text,
+    isCommand: isCommandText(text)
+  };
+}
+
+function saveMessage(item: CachedMessage) {
+  const bucket = recentByChat.get(item.chatKey) ?? [];
+  bucket.push(item);
+
+  if (bucket.length > MAX_PER_CHAT) {
+    bucket.splice(0, bucket.length - MAX_PER_CHAT);
+  }
+
+  recentByChat.set(item.chatKey, bucket);
+}
+
+export function rememberMessage(ctx: unknown): void {
+  const parsed = toCachedMessage(getIncomingMessage(ctx));
+  if (!parsed) return;
+  saveMessage(parsed);
+}
+
+function pickFallback(command: CachedMessage, candidates: CachedMessage[]): CachedMessage | null {
+  if (!candidates.length) return null;
+
+  if (typeof command.messageId === "number") {
+    const directPrev = candidates.find((item) => item.messageId === command.messageId! - 1);
+    if (directPrev) return directPrev;
+  }
+
+  if (command.senderKey && typeof command.date === "number") {
+    const sameSender = candidates.find((item) => {
+      if (!item.senderKey || item.senderKey !== command.senderKey) return false;
+      if (typeof item.date !== "number") return true;
+      return command.date - item.date <= 300;
+    });
+    if (sameSender) return sameSender;
+  }
+
+  if (typeof command.date === "number") {
+    const recent = candidates.find((item) => {
+      if (typeof item.date !== "number") return false;
+      return command.date - item.date <= 45;
+    });
+    if (recent) return recent;
+  }
+
+  return candidates[0] ?? null;
+}
+
+export function findFallbackReply(ctx: unknown): ReplyPayload | null {
+  const command = toCachedMessage(getIncomingMessage(ctx));
+  if (!command) return null;
+
+  const bucket = recentByChat.get(command.chatKey) ?? [];
+
+  const candidates = bucket
+    .filter((item) => {
+      if (!item.text || item.isCommand) return false;
+
+      if (typeof command.messageId === "number") {
+        if (typeof item.messageId !== "number") return false;
+        return item.messageId < command.messageId;
+      }
+
+      return true;
+    })
+    .reverse();
+
+  const picked = pickFallback(command, candidates);
+  if (!picked || !picked.text) return null;
+
+  return {
+    text: picked.text,
+    speaker: picked.speaker,
+    source: "history"
+  };
+}

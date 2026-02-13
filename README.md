@@ -6,6 +6,7 @@
 - 支持私聊和群组
 - 支持文本消息和图片 caption
 - 兼容 `reply_to_message` / `external_reply` / `quote` 三种回复结构
+- 当客户端不上传回复字段时，自动回退到最近消息推断目标
 - 生成 512x512 静态贴纸（WebP）
 - 适合 VPS 上用 Docker 持续运行
 

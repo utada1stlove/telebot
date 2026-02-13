@@ -5,6 +5,7 @@ import {
   toReplyExtra
 } from "../context.js";
 import { getReplyPayload } from "../extract/replyPayload.js";
+import { findFallbackReply } from "../store/recentMessages.js";
 import { renderReplySticker } from "../../render/renderReplySticker.js";
 
 function errorMessage(error: unknown): string {
@@ -19,7 +20,8 @@ export async function handleSticker(ctx: unknown) {
   }
 
   const commandMessageId = getCommandMessageId(ctx);
-  const reply = getReplyPayload(ctx);
+  const strictReply = getReplyPayload(ctx);
+  const reply = strictReply ?? findFallbackReply(ctx);
 
   if (!reply) {
     console.warn("No reply context on /sticker", {
