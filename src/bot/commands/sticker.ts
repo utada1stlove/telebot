@@ -6,6 +6,7 @@ import {
 } from "../context.js";
 import { getReplyPayload } from "../extract/replyPayload.js";
 import { findFallbackReply } from "../store/recentMessages.js";
+import { fetchUserAvatar } from "../services/fetchAvatar.js";
 import { renderReplySticker } from "../../render/renderReplySticker.js";
 
 function errorMessage(error: unknown): string {
@@ -41,11 +42,18 @@ export async function handleSticker(ctx: unknown) {
 
   console.info("Reply context source", {
     source: reply.source,
-    chatId: ctx.chat?.id
+    chatId: ctx.chat?.id,
+    hasUserId: Boolean(reply.senderUserId)
   });
 
   try {
-    const sticker = await renderReplySticker({ speaker: reply.speaker, text: reply.text });
+    const avatar = await fetchUserAvatar((ctx as { telegram?: unknown }).telegram, reply.senderUserId);
+    const sticker = await renderReplySticker({
+      speaker: reply.speaker,
+      text: reply.text,
+      avatar
+    });
+
     await ctx.replyWithSticker({ source: sticker }, toReplyExtra(commandMessageId));
   } catch (error) {
     console.error("Failed to render sticker:", error);

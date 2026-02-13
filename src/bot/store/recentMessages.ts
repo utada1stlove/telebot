@@ -1,13 +1,20 @@
 import { normalizeText } from "../../utils/text.js";
 import type { ReplyPayload } from "../extract/replyPayload.js";
-
-type JsonRecord = Record<string, unknown>;
+import {
+  asRecord,
+  extractMessageIdentity,
+  readNumber,
+  readRecord,
+  readString,
+  type JsonRecord
+} from "../extract/messageIdentity.js";
 
 type CachedMessage = {
   chatKey: string;
   messageId?: number;
   date?: number;
   senderKey?: string;
+  senderUserId?: number;
   speaker: string;
   text: string | null;
   isCommand: boolean;
@@ -15,28 +22,6 @@ type CachedMessage = {
 
 const MAX_PER_CHAT = 200;
 const recentByChat = new Map<string, CachedMessage[]>();
-
-function asRecord(value: unknown): JsonRecord | null {
-  if (!value || typeof value !== "object") return null;
-  return value as JsonRecord;
-}
-
-function readRecord(record: JsonRecord | null, key: string): JsonRecord | null {
-  if (!record) return null;
-  return asRecord(record[key]);
-}
-
-function readString(record: JsonRecord | null, key: string): string | null {
-  if (!record) return null;
-  const value = record[key];
-  return typeof value === "string" ? value : null;
-}
-
-function readNumber(record: JsonRecord | null, key: string): number | null {
-  if (!record) return null;
-  const value = record[key];
-  return typeof value === "number" ? value : null;
-}
 
 function readChatKey(message: JsonRecord | null): string | null {
   const chat = readRecord(message, "chat");
@@ -57,24 +42,6 @@ function readSenderKey(message: JsonRecord | null): string | null {
   if (typeof chatId === "number") return `c:${chatId}`;
 
   return null;
-}
-
-function readSpeaker(message: JsonRecord | null): string {
-  const from = readRecord(message, "from");
-  const firstName = readString(from, "first_name");
-  if (firstName) {
-    const lastName = readString(from, "last_name");
-    return `${firstName}${lastName ? ` ${lastName}` : ""}`.trim();
-  }
-
-  const username = readString(from, "username");
-  if (username) return `@${username}`;
-
-  const senderChat = readRecord(message, "sender_chat");
-  const senderChatTitle = readString(senderChat, "title");
-  if (senderChatTitle) return senderChatTitle;
-
-  return "Unknown";
 }
 
 function readMessageText(message: JsonRecord | null): string | null {
@@ -104,13 +71,15 @@ function toCachedMessage(message: JsonRecord | null): CachedMessage | null {
   if (!chatKey) return null;
 
   const text = readMessageText(message);
+  const identity = extractMessageIdentity(message);
 
   return {
     chatKey,
     messageId: readNumber(message, "message_id") ?? undefined,
     date: readNumber(message, "date") ?? undefined,
     senderKey: readSenderKey(message) ?? undefined,
-    speaker: readSpeaker(message),
+    senderUserId: identity.senderUserId,
+    speaker: identity.speaker,
     text,
     isCommand: isCommandText(text)
   };
@@ -189,6 +158,7 @@ export function findFallbackReply(ctx: unknown): ReplyPayload | null {
   return {
     text: picked.text,
     speaker: picked.speaker,
+    senderUserId: picked.senderUserId,
     source: "history"
   };
 }

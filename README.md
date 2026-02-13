@@ -7,6 +7,7 @@
 - 支持文本消息和图片 caption
 - 兼容 `reply_to_message` / `external_reply` / `quote` 三种回复结构
 - 当客户端不上传回复字段时，自动回退到最近消息推断目标
+- 优先使用 Telegram 用户头像，拿不到时回退为字母头像
 - 生成 512x512 静态贴纸（WebP）
 - 适合 VPS 上用 Docker 持续运行
 
@@ -18,6 +19,8 @@ src/
   bot/
     commands/         # /start /help /sticker
     extract/          # 回复消息提取与兼容逻辑
+    services/         # 头像下载等 Telegram 交互
+    store/            # 最近消息缓存与回退
   render/             # 贴纸渲染
   utils/              # 文本处理工具
   types/              # 共享类型

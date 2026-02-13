@@ -27,6 +27,20 @@ function buildBodyLines(input: string) {
   return ellipsizeLastLine(wrapped.lines, truncated);
 }
 
+async function renderRoundedAvatar(avatar: Buffer, size: number): Promise<Buffer | null> {
+  try {
+    const mask = Buffer.from(`<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="white"/></svg>`);
+
+    return await sharp(avatar)
+      .resize(size, size, { fit: "cover" })
+      .composite([{ input: mask, blend: "dest-in" }])
+      .png()
+      .toBuffer();
+  } catch {
+    return null;
+  }
+}
+
 export async function renderReplySticker(input: StickerBubble): Promise<Buffer> {
   const speaker = escapeXml(clampText(input.speaker, 26));
   const bodyLines = buildBodyLines(input.text).map(escapeXml);
@@ -38,6 +52,7 @@ export async function renderReplySticker(input: StickerBubble): Promise<Buffer> 
   const bubbleY = Math.max(24, Math.floor((H - bubbleHeight) / 2));
 
   const avatarR = 30;
+  const avatarSize = avatarR * 2;
   const avatarCx = 38;
   const avatarCy = bubbleY + 34;
 
@@ -79,7 +94,18 @@ export async function renderReplySticker(input: StickerBubble): Promise<Buffer> 
   ${bodySvg}
 </svg>`;
 
-  return sharp(Buffer.from(svg), { density: 192 })
-    .webp({ quality: 92, effort: 4 })
-    .toBuffer();
+  const base = sharp(Buffer.from(svg), { density: 192 });
+  const roundedAvatar = input.avatar ? await renderRoundedAvatar(input.avatar, avatarSize) : null;
+
+  if (roundedAvatar) {
+    base.composite([
+      {
+        input: roundedAvatar,
+        left: avatarCx - avatarR,
+        top: avatarCy - avatarR
+      }
+    ]);
+  }
+
+  return base.webp({ quality: 92, effort: 4 }).toBuffer();
 }

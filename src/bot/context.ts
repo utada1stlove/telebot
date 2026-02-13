@@ -10,6 +10,7 @@ export type CommandContext = {
   chat?: {
     id?: number | string;
   };
+  telegram?: unknown;
   message?: CommandMessage;
   msg?: CommandMessage;
   reply: (text: string, extra?: ReplyExtra) => Promise<unknown>;
