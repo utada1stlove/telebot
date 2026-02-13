@@ -16,7 +16,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends fonts-noto-cjk fonts-noto-color-emoji \
+  && apt-get install -y --no-install-recommends fontconfig fonts-noto-cjk fonts-noto-color-emoji \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./

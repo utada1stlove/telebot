@@ -91,9 +91,9 @@ function buildPackTitle(displayName: string): string {
   return cleanTitle(`${safeName}'s Reply Stickers`);
 }
 
-function buildInputSticker(sticker: Buffer, emoji: string) {
+function buildInputSticker(fileId: string, emoji: string) {
   return {
-    sticker: { source: sticker },
+    sticker: fileId,
     format: "static",
     emoji_list: [emoji]
   };
@@ -110,6 +110,22 @@ async function stickerSetExists(telegram: TelegramStickerApi, packName: string):
   }
 }
 
+async function uploadStickerAndGetFileId(telegram: TelegramStickerApi, userId: number, sticker: Buffer): Promise<string> {
+  const uploaded = await telegram.callApi("uploadStickerFile", {
+    user_id: userId,
+    sticker: { source: sticker },
+    sticker_format: "static"
+  });
+
+  const uploadedRecord = asRecord(uploaded);
+  const fileId = readString(uploadedRecord, "file_id") ?? readString(asRecord(uploadedRecord?.sticker), "file_id");
+  if (!fileId) {
+    throw new Error("Failed to upload sticker file: missing file_id.");
+  }
+
+  return fileId;
+}
+
 export async function ensureStickerInPack(input: EnsureStickerInPackInput): Promise<EnsureStickerInPackResult> {
   if (!isTelegramStickerApi(input.telegram)) {
     throw new Error("Telegram API unavailable on context.");
@@ -119,7 +135,8 @@ export async function ensureStickerInPack(input: EnsureStickerInPackInput): Prom
   const botUsername = await getBotUsername(input.telegram);
   const packName = buildPackName(input.userId, botUsername);
   const packTitle = buildPackTitle(input.displayName);
-  const inputSticker = buildInputSticker(input.sticker, emoji);
+  const uploadedFileId = await uploadStickerAndGetFileId(input.telegram, input.userId, input.sticker);
+  const inputSticker = buildInputSticker(uploadedFileId, emoji);
 
   const exists = await stickerSetExists(input.telegram, packName);
 
