@@ -25,10 +25,13 @@ export async function startBot() {
     }
   });
 
-  registerHandlers(bot);
+  registerHandlers(bot, { ownerTgid: config.ownerTgid });
 
   await bot.launch({ dropPendingUpdates: config.dropPendingUpdates });
-  console.log("Reply sticker bot started.");
+  console.log("Reply sticker bot started.", {
+    ownerOnly: typeof config.ownerTgid === "number",
+    ownerTgid: config.ownerTgid ?? null
+  });
 
   process.once("SIGINT", () => bot.stop("SIGINT"));
   process.once("SIGTERM", () => bot.stop("SIGTERM"));

@@ -9,6 +9,7 @@
 - 当客户端不上传回复字段时，自动回退到最近消息推断目标
 - 优先使用 Telegram 用户头像，拿不到时回退为字母头像
 - 支持 `/pack` 一键将最近生成贴纸加入你的个人贴纸包
+- 可选开启 `OWNER_TGID`，将命令权限限制到单一账号
 - 生成 512x512 静态贴纸（WebP）
 - 适合 VPS 上用 Docker 持续运行
 
@@ -41,6 +42,7 @@ src/
 ```bash
 cp .env.example .env
 # 编辑 .env，填入真实 BOT_TOKEN
+# 如需“仅自己可用”，再设置 OWNER_TGID=你的Telegram数字ID
 nano .env
 
 docker compose up -d --build
@@ -48,6 +50,16 @@ docker compose logs -f --tail=100
 ```
 
 看到日志里有 `Reply sticker bot started.` 即代表启动成功。
+
+## 限制命令权限（可选）
+在 `.env` 增加：
+
+```bash
+OWNER_TGID=123456789
+```
+
+- 不设置 `OWNER_TGID`：任何人都可使用命令
+- 设置后：只有该 TGID 可用 `/start /help /preview /sticker /pack`
 
 ## 使用方法
 1. 在 Telegram 中先回复一条消息
