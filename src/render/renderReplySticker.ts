@@ -10,9 +10,12 @@ const BUBBLE_W = 414;
 const BUBBLE_PADDING_X = 28;
 const SPEAKER_FONT_SIZE = 42;
 const BODY_FONT_SIZE = 56;
-const BODY_LINE_HEIGHT = 64;
+const BODY_LINE_HEIGHT = 62;
 const MAX_BODY_LINES = 5;
 const BODY_MAX_UNITS = 12;
+const TOP_PADDING = 34;
+const SPEAKER_GAP_TO_BODY = 14;
+const BOTTOM_PADDING = 22;
 
 function initialOf(name: string) {
   const normalized = name.trim();
@@ -45,19 +48,21 @@ export async function renderReplySticker(input: StickerBubble): Promise<Buffer> 
   const speaker = escapeXml(clampText(input.speaker, 26));
   const bodyLines = buildBodyLines(input.text).map(escapeXml);
 
+  const textBlockHeight = BODY_FONT_SIZE + Math.max(0, bodyLines.length - 1) * BODY_LINE_HEIGHT;
   const bubbleHeight = Math.min(
-    460,
-    58 + SPEAKER_FONT_SIZE + 24 + bodyLines.length * BODY_LINE_HEIGHT + 36
+    452,
+    TOP_PADDING + SPEAKER_FONT_SIZE + SPEAKER_GAP_TO_BODY + textBlockHeight + BOTTOM_PADDING
   );
   const bubbleY = Math.max(24, Math.floor((H - bubbleHeight) / 2));
 
-  const avatarR = 30;
+  const avatarR = 28;
   const avatarSize = avatarR * 2;
-  const avatarCx = 38;
-  const avatarCy = bubbleY + 34;
+  const avatarCx = BUBBLE_X - avatarR + 6;
+  const avatarCy = bubbleY + avatarR + 10;
 
   const bodyStartX = BUBBLE_X + BUBBLE_PADDING_X;
-  const bodyStartY = bubbleY + 58 + SPEAKER_FONT_SIZE + 20;
+  const speakerY = bubbleY + TOP_PADDING + SPEAKER_FONT_SIZE;
+  const bodyStartY = speakerY + SPEAKER_GAP_TO_BODY;
 
   const bodySvg = bodyLines
     .map((line, index) => {
@@ -87,7 +92,7 @@ export async function renderReplySticker(input: StickerBubble): Promise<Buffer> 
     ${escapeXml(initialOf(input.speaker))}
   </text>
 
-  <text x="${BUBBLE_X + BUBBLE_PADDING_X}" y="${bubbleY + 58}" fill="${theme.speaker}" font-size="${SPEAKER_FONT_SIZE}" font-weight="700">
+  <text x="${BUBBLE_X + BUBBLE_PADDING_X}" y="${speakerY}" fill="${theme.speaker}" font-size="${SPEAKER_FONT_SIZE}" font-weight="700">
     ${speaker}
   </text>
 
